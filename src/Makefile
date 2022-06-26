@@ -6,7 +6,7 @@ BPFTOOL ?= $(abspath ../tools/bpftool)
 LIBBPF_SRC := $(abspath ../libbpf/src)
 LIBBPF_OBJ := $(abspath $(OUTPUT)/libbpf.a)
 INCLUDES := -I$(OUTPUT)
-CFLAGS := -g -Wall
+CFLAGS := -g -Wall -O2
 ARCH := $(shell uname -m | sed 's/x86_64/x86/')
 
 APPS = perfbuf-output ringbuf-output ringbuf-reserve-submit

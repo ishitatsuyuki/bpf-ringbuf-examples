@@ -6,6 +6,7 @@
 #include <time.h>
 #include <sys/resource.h>
 #include <bpf/libbpf.h>
+#include <unistd.h>
 #include "common.h"
 #include "ringbuf-output.skel.h"
 
@@ -37,18 +38,24 @@ static void sig_handler(int sig)
 	exiting = true;
 }
 
-int handle_event(void *ctx, void *data, size_t data_sz)
-{
+static long polls = 0;
+static long counter = 0;
+
+int handle_event(void *ctx, void *data, size_t data_sz) {
 	const struct event *e = data;
 	struct tm *tm;
 	char ts[32];
-	time_t t;
 
-	time(&t);
-	tm = localtime(&t);
-	strftime(ts, sizeof(ts), "%H:%M:%S", tm);
+	if (counter++ % 20000 == 0)
+	{
+		time_t t;
 
-	printf("%-8s %-5s %-7d %-16s %s\n", ts, "EXEC", e->pid, e->comm, e->filename);
+		time(&t);
+		tm = localtime(&t);
+		strftime(ts, sizeof(ts), "%H:%M:%S", tm);
+
+		printf("polls=%-10ld %-6s %-5s %d %d\n", polls, ts, "Switch", e->pid, e->next_pid);
+	}
 
 	return 0;
 }
@@ -93,9 +100,11 @@ int main(int argc, char **argv)
 
 	/* Process events */
 	printf("%-8s %-5s %-7s %-16s %s\n",
-	       "TIME", "EVENT", "PID", "COMM", "FILENAME");
+		   "TIME", "EVENT", "PID", "COMM", "FILENAME");
 	while (!exiting) {
-		err = ring_buffer__poll(rb, 100 /* timeout, ms */);
+		err = ring_buffer__poll(rb, -1 /* timeout, ms */);
+		polls++;
+
 		/* Ctrl-C will cause -EINTR */
 		if (err == -EINTR) {
 			err = 0;

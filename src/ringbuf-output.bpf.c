@@ -2,6 +2,9 @@
 /* Copyright (c) 2020 Andrii Nakryiko */
 #include <linux/bpf.h>
 #include <bpf/bpf_helpers.h>
+#include <stdbool.h>
+#include <stdint.h>
+
 #include "common.h"
 
 char LICENSE[] SEC("license") = "Dual BSD/GPL";
@@ -12,6 +15,17 @@ struct {
 	__uint(max_entries, 256 * 1024 /* 256 KB */);
 } rb SEC(".maps");
 
+struct switch_args {
+    unsigned long long ignore;
+    char prev_comm[16];
+    int prev_pid;
+    int prev_prio;
+    long long prev_state;
+    char next_comm[16];
+    int next_pid;
+    int next_prio;
+};
+
 struct {
 	__uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
 	__uint(max_entries, 1);
@@ -19,22 +33,14 @@ struct {
 	__type(value, struct event);
 } heap SEC(".maps");
 
-SEC("tp/sched/sched_process_exec")
-int handle_exec(struct trace_event_raw_sched_process_exec *ctx)
-{
-	unsigned fname_off = ctx->__data_loc_filename & 0xFFFF;
-	struct event *e;
-	int zero = 0;
-	
-	e = bpf_map_lookup_elem(&heap, &zero);
-	if (!e) /* can't happen */
-		return 0;
+SEC("tracepoint/sched/sched_switch")
+int tp_sched_switch(struct switch_args* args) {
+	struct event e;
 
-	e->pid = bpf_get_current_pid_tgid() >> 32;
-	bpf_get_current_comm(&e->comm, sizeof(e->comm));
-	bpf_probe_read_str(&e->filename, sizeof(e->filename), (void *)ctx + fname_off);
+	e.pid = args->prev_pid;
+	e.next_pid = args->next_pid;
 
-	bpf_ringbuf_output(&rb, e, sizeof(*e), 0);
-	return 0;
+	// if (bpf_get_prandom_u32() < 0xffffff)
+      bpf_ringbuf_output(&rb, &e, sizeof(e), 0);
+    return 0;
 }
-

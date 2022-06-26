@@ -25,8 +25,7 @@ struct trace_event_raw_sched_process_exec {
 /* definition of a sample sent to user-space from BPF program */
 struct event {
 	int pid;
-	char comm[TASK_COMM_LEN];
-	char filename[MAX_FILENAME_LEN];
+	int next_pid;
 };
 
 #endif /* __COMMON_H */
